@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bingo Sheet Maker</title>
+<style>
+:root{--bg:#faf8f4;--fg:#222;--card:#fff;--line:#c9c2b4;--accent:#d9480f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1b19;--fg:#eee;--card:#2a2926;--line:#58554e;--accent:#ff8a50}}
+:root[data-theme="dark"]{--bg:#1c1b19;--fg:#eee;--card:#2a2926;--line:#58554e;--accent:#ff8a50}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,Segoe UI,sans-serif;padding:16px}
+.wrap{max-width:900px;margin:0 auto}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.bar label{font-size:.85rem}
+input,button,textarea{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+input[type=number]{width:60px}
+textarea{width:100%;box-sizing:border-box;min-height:140px;margin-bottom:8px}
+button{cursor:pointer}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+#msg{font-size:.85rem;margin:4px 0 12px;min-height:1.2em}
+.sheet{margin-bottom:28px;break-after:page;page-break-after:always}
+.sheet:last-child{break-after:auto;page-break-after:auto}
+.title{font-size:1.6rem;font-weight:700;text-align:center;margin-bottom:6px}
+.num{font-size:.8rem;text-align:center;opacity:.6;margin-bottom:8px}
+.grid{display:grid;gap:6px}
+.cell{min-height:110px;background:var(--card);border:2px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:6px;text-align:center;font-size:1.1rem;word-break:break-word;box-sizing:border-box;overflow:hidden}
+.hint{font-size:.8rem;opacity:.7}
+@media print{body{background:#fff;color:#000;padding:0}.noprint{display:none}.cell{border:2px solid #000;background:#fff;color:#000;min-height:30vh}.sheet{margin:0}.num{color:#000}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="noprint">
+    <div class="bar">
+      <label>Title <input id="title" value="BINGO"></label>
+      <label>Rows <input id="rows" type="number" min="1" max="10" value="3"></label>
+      <label>Columns <input id="cols" type="number" min="1" max="10" value="5"></label>
+      <label>Sheets <input id="n" type="number" min="1" max="100" value="7"></label>
+    </div>
+    <textarea id="words" placeholder="One bingo item per line. You need at least rows × columns items (15 for 3×5). More items = more variety between sheets."></textarea>
+    <div class="bar">
+      <button id="gen" class="primary">Generate sheets</button>
+      <button id="print">Print all</button>
+    </div>
+    <div id="msg"></div>
+  </div>
+  <div id="out"></div>
+  <p class="hint noprint">Every sheet is unique. You can click any square on a generated sheet to tweak its text. Printing puts one sheet per page (landscape works best for 5 columns).</p>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+try{const s=JSON.parse(localStorage.getItem('bingo2')||'null');if(s){$('words').value=s.words;$('title').value=s.title;$('rows').value=s.rows;$('cols').value=s.cols;$('n').value=s.n}}catch(e){}
+function save(){try{localStorage.setItem('bingo2',JSON.stringify({words:$('words').value,title:$('title').value,rows:$('rows').value,cols:$('cols').value,n:$('n').value}))}catch(e){}}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function gen(){
+  save();
+  const rows=Math.max(1,Math.min(10,+$('rows').value||1)),cols=Math.max(1,Math.min(10,+$('cols').value||1)),n=Math.max(1,Math.min(100,+$('n').value||1));
+  const cells=rows*cols;
+  const words=[...new Set($('words').value.split('\n').map(s=>s.trim()).filter(Boolean))];
+  const msg=$('msg'),out=$('out');out.innerHTML='';
+  if(words.length<cells){msg.textContent='You need at least '+cells+' different items (you have '+words.length+').';return}
+  const seen=new Set(),sheets=[];let tries=0;
+  while(sheets.length<n&&tries<n*200){
+    tries++;
+    const pick=shuffle(words).slice(0,cells),key=pick.join('\u0001');
+    if(seen.has(key))continue;
+    seen.add(key);sheets.push(pick);
+  }
+  msg.textContent=sheets.length<n?'Only '+sheets.length+' unique sheets were possible with this list. Add more items for more.':'Made '+sheets.length+' unique sheets.';
+  sheets.forEach((pick,k)=>{
+    const s=document.createElement('div');s.className='sheet';
+    const t=document.createElement('div');t.className='title';t.textContent=$('title').value;
+    const num=document.createElement('div');num.className='num';num.textContent='Sheet '+(k+1)+' of '+sheets.length;
+    const g=document.createElement('div');g.className='grid';g.style.gridTemplateColumns='repeat('+cols+',1fr)';
+    pick.forEach(w=>{const c=document.createElement('div');c.className='cell';c.contentEditable=true;c.textContent=w;g.appendChild(c)});
+    s.append(t,num,g);out.appendChild(s);
+  });
+}
+$('gen').onclick=gen;
+$('print').onclick=()=>window.print();
+['words','title','rows','cols','n'].forEach(i=>$(i).addEventListener('input',save));
+</script>
+</body>
+</html>
